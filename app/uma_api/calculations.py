@@ -37,10 +37,9 @@ def calculate_aptitude_factors(umamusume, base_factor_distance, base_factor_styl
     if umamusume.classic_aptitude == "D" and umamusume.mile_aptitude == "D":
         factor_two = "中距離"
 
-    # 最後にダートF/G適性のロジックを適用
-    if umamusume.dirt_aptitude == 'G':
-        # ダート適性がGなら、ダート因子は付与せずベース因子を適用
-        return factor_one, factor_two
+    if umamusume.dirt_aptitude == 'G' and factor_one == base_factor_distance and factor_two == base_factor_distance:
+        # ダート適性がGでかつ、E/D適性による因子が決定しなかった場合
+        return "ダート","ダート"
     
     if umamusume.dirt_aptitude == 'F':
         # ここに到達した場合、ダート適性がFで、E/D適性による因子が決定しなかった場合
