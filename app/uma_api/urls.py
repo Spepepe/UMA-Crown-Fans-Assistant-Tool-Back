@@ -26,6 +26,10 @@ urlpatterns = [
     path('api/umamusume/regist', views.umamusume_regist, name='umamusume_regist'),
     path('api/umamusume/user-regist', views.user_regist_umamusume, name='user_regist_umamusume'),
     path('api/umamusume/fan-up', views.fan_up, name='fan_up'),
+    path('api/umamusume/list', views.umamusume_list, name='umamusume_list'),
+
+    #　因子関連
+    path('api/factor/calculate', views.calculate_parent_factors, name='calculate_parent_factors'),
     
     # ユーザー関連
     path('api/user/register', views.user_register, name='user_register'),

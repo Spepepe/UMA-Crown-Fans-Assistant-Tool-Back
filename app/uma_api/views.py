@@ -10,6 +10,7 @@ from user_agents import parse
 from .models import *
 from .serializers import *
 from .utils import UmamusumeLog
+from .calculations import calculate_aptitude_factors
 
 
 @api_view(['GET'])
@@ -210,7 +211,95 @@ def fan_up(request):
         logger.logwrite('error', f'fanUp:{e}')
         return Response({'error': 'ファン数更新エラー'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def umamusume_list(request):
+    """ウマ娘情報を取得するAPI"""
+    logger = UmamusumeLog(request)
+    logger.logwrite('start', 'umamusumLList')
+    
+    try:
+        # umamusume_nameの五十音順でソートして取得
+        umamusumes = Umamusume.objects.all().order_by('umamusume_name')
+        
+        serializer = UmamusumeSerializer(umamusumes, many=True)
+        
+        logger.logwrite('end', f'umamusumeList - 件数:{len(serializer.data)}')
+        return Response({'data': serializer.data})
+        
+    except Exception as e:
+        logger.logwrite('error', f'umamusumeList:{e}')
+        return Response({'error': 'ウマ娘リスト取得エラー'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def calculate_parent_factors(request):
+    """因子情報を取得するAPI"""
+    logger = UmamusumeLog(request)
+    logger.logwrite('start', 'calculate_parent_factors')
+    
+    try:
+        # リクエストから取得
+        distance_id = int(request.GET.get('distance_id', 1))
+        surface_id = int(request.GET.get('surface_id', 1))
+        style_id = int(request.GET.get('style_id', 1))
+        parent_umamusume_id = int(request.GET.get('parent_umamusume_id', 1))
+        grandparent_umamusume_id = int(request.GET.get('grandparent_umamusume_id', 2))
+        grandmother_umamusume_id = int(request.GET.get('grandmother_umamusume_id', 3))
+
+        # IDを文字列に変換するマップ
+        DISTANCE_MAP = {1: "短距離", 2: "マイル", 3: "中距離", 4: "長距離"}
+        SURFACE_MAP = {1: "芝", 2: "ダート"}
+        STYLE_MAP = {1: "逃げ", 2: "先行", 3: "差し", 4: "追込"}
+
+        distance = DISTANCE_MAP.get(distance_id, "不明")
+        surface = SURFACE_MAP.get(surface_id, "不明")
+        style = STYLE_MAP.get(style_id, "不明")
+
+        # ウマ娘情報をDBから取得
+        parent_umamusume = Umamusume.objects.filter(umamusume_id=parent_umamusume_id).first()
+        grandparent_umamusume = Umamusume.objects.filter(umamusume_id=grandparent_umamusume_id).first()
+        grandmother_umamusume = Umamusume.objects.filter(umamusume_id=grandmother_umamusume_id).first()
+
+        # 祖祖父母の因子を特定の値で設定
+        grandparent_a_aa = surface
+        grandparent_a_ab = style
+        grandparent_b_ba = surface
+        grandparent_b_bb = style
+
+        # 祖父母Aの適性因子を計算
+        factor_aab, factor_abb = calculate_aptitude_factors(grandparent_umamusume, distance , style)
+
+        # 祖父母Bの適性因子を計算
+        factor_bab, factor_bbb = calculate_aptitude_factors(grandmother_umamusume, distance , style)
+        
+        # 最後に整形して返す
+        response_data = {
+            "inheritance_factors": {
+                "grandparent_a": {
+                    "aaa": surface,
+                    "aab": factor_aab,
+                    "aba": style,
+                    "abb": factor_abb
+                },
+                "grandparent_b": {
+                    "baa": surface,
+                    "bab": factor_bab,
+                    "bba": style,
+                    "bbb": factor_bbb
+                }
+            }
+        }
+
+        return Response({'data': response_data})
+
+    except Exception as e:
+        logger.logwrite('error', f'umamusumeList:{e}')
+        return Response({'error': '因子情報取得エラー'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+
+"""ユーザー関連API群"""
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def user_register(request):
