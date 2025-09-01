@@ -268,10 +268,10 @@ def calculate_parent_factors(request):
         grandparent_b_bb = style
 
         # 祖父母Aの適性因子を計算
-        factor_aab, factor_abb = calculate_aptitude_factors(grandparent_umamusume, distance , style)
+        factor_aab, factor_abb = calculate_aptitude_factors(grandparent_umamusume, style)
 
         # 祖父母Bの適性因子を計算
-        factor_bab, factor_bbb = calculate_aptitude_factors(grandmother_umamusume, distance , style)
+        factor_bab, factor_bbb = calculate_aptitude_factors(grandmother_umamusume, style)
         
         # 最後に整形して返す
         response_data = {
