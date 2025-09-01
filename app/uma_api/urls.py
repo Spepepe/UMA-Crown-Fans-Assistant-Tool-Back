@@ -19,7 +19,7 @@ urlpatterns = [
     path('api/race/remaining', race_views.remaining, name='remaining'),
     path('api/race/remaining-to-race', race_views.remaining_to_race, name='remaining_to_race'),
     path('api/race/run', race_views.race_run, name='race_run'),
-    path('api/race/remaining-pattern', race_views.remaining_pattern, name='remaining_pattern'),
+
     
     # ウマ娘関連
     path('api/umamusume/regist-list', views.umamusume_regist_list, name='umamusume_regist_list'),
