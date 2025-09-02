@@ -7,6 +7,7 @@ from django.db.models import Q, Count
 from .models import *
 from .serializers import *
 from .utils import UmamusumeLog
+from .breedingCount import getbreedingCountData
 
 
 @api_view(['POST'])
@@ -84,6 +85,7 @@ def remaining(request):
             is_all_crown = remaining_races.count() == 0
             
             if not is_all_crown:
+                breedingCount = getbreedingCountData(regist_umamusume,remaining_races)
                 turf_sprint_race = remaining_races.filter(race_state=0, distance=1).count()
                 turf_mile_race = remaining_races.filter(race_state=0, distance=2).count()
                 turf_classic_race = remaining_races.filter(race_state=0, distance=3).count()
@@ -98,6 +100,7 @@ def remaining(request):
             result = {
                 "umamusume": UmamusumeSerializer(regist_umamusume.umamusume).data,
                 "isAllCrown": is_all_crown,
+                "breedingCount": breedingCount,
                 "allCrownRace": remaining_races.count(),
                 "turfSprintRace": turf_sprint_race,
                 "turfMileRace": turf_mile_race,
