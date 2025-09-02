@@ -129,7 +129,7 @@ def umamusume_regist_list(request):
     try:
         user_id = request.user.user_id
         regist_umamusume_ids = RegistUmamusume.objects.filter(user_id=user_id).values_list('umamusume_id', flat=True)
-        umamusumes = Umamusume.objects.exclude(umamusume_id__in=regist_umamusume_ids)
+        umamusumes = Umamusume.objects.exclude(umamusume_id__in=regist_umamusume_ids).order_by('umamusume_name')
         serializer = UmamusumeSerializer(umamusumes, many=True)
         logger.logwrite('end', f'umamusumeRegistList - 未登録件数:{len(serializer.data)}')
         return Response({'data': serializer.data})
