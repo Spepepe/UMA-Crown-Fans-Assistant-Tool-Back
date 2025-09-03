@@ -321,19 +321,23 @@ def race_run(request):
         return Response({'error': 'ウマ娘出走エラー'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-@api_view(['GET'])
-@permission_classes([AllowAny])
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
 def get_race_pattern(request):
     """残レースから計算したレース順序を出力するAPI
     * @param request HTTPリクエストオブジェクト
+    * @param request.user.user_id ユーザーID
+    * @param request.data.umamusumeId ウマ娘ID
+    * @param request.data.count カウント
     * @return Response レースパターンデータ
     """
     logger = UmamusumeLog(request)
     logger.logwrite('start', 'get_race_pattern')
     
     try:
-        umamusume_id = 2    # 仮のウマ娘ID
-        user_id = 1         # 仮のユーザーID
+        user_id = request.user.user_id
+        umamusume_id = request.data.get('umamusumeId')
+        count = request.data.get('count')
         
         # RegistUmamusumeを取得
         regist_umamusume = RegistUmamusume.objects.get(user_id=user_id, umamusume_id=umamusume_id)
@@ -350,8 +354,7 @@ def get_race_pattern(request):
         # シナリオレースを取得
         scenario_races = ScenarioRace.objects.filter(umamusume_id=regist_umamusume.umamusume_id)
         
-        final_count = 6  # 仮の最終育成数
-        race_pattern = get_race_pattern_data(final_count, user_id, umamusume_id)
+        race_pattern = get_race_pattern_data(count, user_id, umamusume_id)
         return Response({'data': race_pattern})
     except Exception as e:
         logger.logwrite('error', f'get_race_pattern:{e}')
