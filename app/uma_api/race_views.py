@@ -8,12 +8,17 @@ from .models import *
 from .serializers import *
 from .utils import UmamusumeLog
 from .breedingCount import getbreedingCountData
-
+from .racePattern import get_race_pattern_data
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def race_list(request):
-    """レースのリストをDBから取得するAPI"""
+    """レースのリストをDBから取得するAPI
+    * @param request HTTPリクエストオブジェクト
+    * @param request.data.state レース場状態 (-1:全て, その他:指定状態)
+    * @param request.data.distance 距離 (-1:全て, その他:指定距離)
+    * @return Response レースリストデータ
+    """
     logger = UmamusumeLog(request)
     logger.logwrite('start', 'raceList')
     
@@ -48,7 +53,10 @@ def race_list(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def race_regist_list(request):
-    """ウマ娘を登録する際のレース情報を加工してDBから取得するAPI"""
+    """ウマ娘を登録する際のレース情報を加工してDBから取得するAPI
+    * @param request HTTPリクエストオブジェクト
+    * @return Response レース登録用リストデータ
+    """
     logger = UmamusumeLog(request)
     logger.logwrite('start', 'raceRegistList')
     
@@ -65,7 +73,11 @@ def race_regist_list(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def remaining(request):
-    """ユーザーが登録したウマ娘の未出走データを取得するAPI"""
+    """ユーザーが登録したウマ娘の未出走データを取得するAPI
+    * @param request HTTPリクエストオブジェクト
+    * @param request.user.user_id ユーザーID
+    * @return Response ウマ娘別の残レース情報
+    """
     logger = UmamusumeLog(request)
     logger.logwrite('start', 'remaining')
     
@@ -122,7 +134,15 @@ def remaining(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def remaining_to_race(request):
-    """シーズン、出走月、前後半また対象ウマ娘が出走していないレースを取得するAPI"""
+    """シーズン、出走月、前後半また対象ウマ娘が出走していないレースを取得するAPI
+    * @param request HTTPリクエストオブジェクト
+    * @param request.user.user_id ユーザーID
+    * @param request.data.umamusumeId ウマ娘ID
+    * @param request.data.season シーズン (1:ジュニア, 2:クラシック, 3:シニア)
+    * @param request.data.month 出走月 (1-12)
+    * @param request.data.half 前後半 (0:前半, 1:後半)
+    * @return Response レース情報とプロパティ
+    """
     logger = UmamusumeLog(request)
     logger.logwrite('start', 'remainingToRace')
     
@@ -178,7 +198,13 @@ def remaining_to_race(request):
 
 
 def set_remaining_race(regist_race_ids, season, month, half):
-    """全体残レース、シーズン、出走月、前後半を引数としてレースを取得する関数"""
+    """全体残レース、シーズン、出走月、前後半を引数としてレースを取得する関数
+    * @param regist_race_ids 出走済みレースIDリスト
+    * @param season シーズン (1:ジュニア, 2:クラシック, 3:シニア)
+    * @param month 出走月 (1-12)
+    * @param half 前後半 (0:前半, 1:後半)
+    * @return QuerySet レース情報のクエリセット
+    """
     remaining_races = Race.objects.exclude(race_id__in=regist_race_ids).filter(race_rank__in=[1, 2, 3])
     
     if season == 1:
@@ -192,7 +218,11 @@ def set_remaining_race(regist_race_ids, season, month, half):
 
 
 def set_race_return(regist_race_ids, prop):
-    """対象時期より前にレースが存在するか検証する関数"""
+    """対象時期より前にレースが存在するか検証する関数
+    * @param regist_race_ids 出走済みレースIDリスト
+    * @param prop プロパティ辞書 (season, month, half)
+    * @return bool 前にレースが存在するかどうか
+    """
     remaining_races = Race.objects.exclude(race_id__in=regist_race_ids).filter(race_rank__in=[1, 2, 3])
     
     for s in range(prop['season'], 0, -1):
@@ -224,7 +254,11 @@ def set_race_return(regist_race_ids, prop):
 
 
 def set_race_forward(regist_race_ids, prop):
-    """対象時期より後にレースが存在するか検証する関数"""
+    """対象時期より後にレースが存在するか検証する関数
+    * @param regist_race_ids 出走済みレースIDリスト
+    * @param prop プロパティ辞書 (season, month, half)
+    * @return bool 後にレースが存在するかどうか
+    """
     remaining_races = Race.objects.exclude(race_id__in=regist_race_ids).filter(race_rank__in=[1, 2, 3])
     
     for s in range(prop['season'], 4):
@@ -258,7 +292,13 @@ def set_race_forward(regist_race_ids, prop):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def race_run(request):
-    """対象のレースに対して出走した結果を残すAPI"""
+    """対象のレースに対して出走した結果を残すAPI
+    * @param request HTTPリクエストオブジェクト
+    * @param request.user.user_id ユーザーID
+    * @param request.data.umamusumeId ウマ娘ID
+    * @param request.data.raceId レースID
+    * @return Response 出走完了メッセージ
+    """
     logger = UmamusumeLog(request)
     logger.logwrite('start', 'raceRun')
     
@@ -281,3 +321,38 @@ def race_run(request):
         return Response({'error': 'ウマ娘出走エラー'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_race_pattern(request):
+    """残レースから計算したレース順序を出力するAPI
+    * @param request HTTPリクエストオブジェクト
+    * @return Response レースパターンデータ
+    """
+    logger = UmamusumeLog(request)
+    logger.logwrite('start', 'get_race_pattern')
+    
+    try:
+        umamusume_id = 2    # 仮のウマ娘ID
+        user_id = 1         # 仮のユーザーID
+        
+        # RegistUmamusumeを取得
+        regist_umamusume = RegistUmamusume.objects.get(user_id=user_id, umamusume_id=umamusume_id)
+        
+        # 出走済みレースIDを取得
+        regist_race_ids = RegistUmamusumeRace.objects.filter(
+            user_id=user_id,
+            umamusume_id=umamusume_id
+        ).values_list('race_id', flat=True)
+        
+        # 残レースを取得
+        remaining_races = Race.objects.exclude(race_id__in=regist_race_ids).filter(race_rank__in=[1, 2, 3])
+
+        # シナリオレースを取得
+        scenario_races = ScenarioRace.objects.filter(umamusume_id=regist_umamusume.umamusume_id)
+        
+        final_count = 6  # 仮の最終育成数
+        race_pattern = get_race_pattern_data(final_count, user_id, umamusume_id)
+        return Response({'data': race_pattern})
+    except Exception as e:
+        logger.logwrite('error', f'get_race_pattern:{e}')
+        return Response({'error': '残レース計算エラー'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

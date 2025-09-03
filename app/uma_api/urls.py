@@ -19,6 +19,7 @@ urlpatterns = [
     path('api/race/remaining', race_views.remaining, name='remaining'),
     path('api/race/remaining-to-race', race_views.remaining_to_race, name='remaining_to_race'),
     path('api/race/run', race_views.race_run, name='race_run'),
+    path('api/race/pattern', race_views.get_race_pattern, name='get_race_pattern'),
 
     
     # ウマ娘関連
