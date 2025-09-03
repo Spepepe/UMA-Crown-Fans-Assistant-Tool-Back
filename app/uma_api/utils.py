@@ -4,10 +4,21 @@ logger = logging.getLogger('uma_api')
 
 
 class UmamusumeLog:
+    """ウマ娘アプリ用ログクラス
+    * @param request HTTPリクエストオブジェクト
+    """
     def __init__(self, request=None):
+        """コンストラクタ
+        * @param request HTTPリクエストオブジェクト
+        """
         self.request = request
     
     def logwrite(self, msg: str, attribute: str):
+        """ログ出力メインメソッド
+        * @param msg メッセージタイプ ('start', 'end', 'error')
+        * @param attribute 処理名
+        * @return None
+        """
         if msg == 'start':
             self.log_start(attribute)
         elif msg == 'end':
@@ -18,7 +29,9 @@ class UmamusumeLog:
             raise ValueError("msgの値に問題があります。")
     
     def _get_request_info(self):
-        """リクエスト情報を取得する"""
+        """リクエスト情報を取得する
+        * @return str リクエスト情報文字列
+        """
         if not self.request:
             return ""
         
@@ -53,6 +66,10 @@ class UmamusumeLog:
         return " | ".join(info_parts)
     
     def log_start(self, attribute: str):
+        """処理開始ログ出力
+        * @param attribute 処理名
+        * @return None
+        """
         request_info = self._get_request_info()
         if request_info:
             message = f'{attribute}の処理を開始します。 | {request_info}'
@@ -65,6 +82,10 @@ class UmamusumeLog:
         print(f"[INFO] {message}")
     
     def log_end(self, attribute: str):
+        """処理終了ログ出力
+        * @param attribute 処理名
+        * @return None
+        """
         request_info = self._get_request_info()
         if request_info:
             message = f'{attribute}の処理を終了します。 | {request_info}'
@@ -77,6 +98,10 @@ class UmamusumeLog:
         print(f"[INFO] {message}")
     
     def log_error(self, attribute: str):
+        """エラーログ出力
+        * @param attribute 処理名
+        * @return None
+        """
         request_info = self._get_request_info()
         if request_info:
             message = f'{attribute}に失敗しました。 | {request_info}'

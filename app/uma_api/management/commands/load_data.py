@@ -5,9 +5,18 @@ from django.core.management.base import BaseCommand
 from uma_api.models import *
 
 class Command(BaseCommand):
+    """初期データをJSONファイルから読み込むDjangoコマンド
+    * @param args コマンドライン引数
+    * @param options コマンドオプション
+    """
     help = 'Load initial data from JSON files'
 
     def handle(self, *args, **options):
+        """メイン処理メソッド
+        * @param args コマンドライン引数
+        * @param options コマンドオプション
+        * @return None
+        """
         base_path = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'data')
         
         # レースデータ
@@ -33,6 +42,10 @@ class Command(BaseCommand):
 
     # ------------------ RACE ------------------ #
     def load_races(self, race_data):
+        """レースデータをロードするメソッド
+        * @param race_data レースデータ辞書
+        * @return None
+        """
         for race_name, race_info in race_data.items():
             if not Race.objects.filter(race_name=race_name).exists():
                 Race.objects.create(
@@ -53,6 +66,10 @@ class Command(BaseCommand):
 
     # ------------------ UMAMUSUME ------------------ #
     def load_umamusume(self, umamusume_data):
+        """ウマ娘データをロードするメソッド
+        * @param umamusume_data ウマ娘データ辞書
+        * @return None
+        """
         for umamusume_name, umamusume_info in umamusume_data.items():
             if not Umamusume.objects.filter(umamusume_name=umamusume_name).exists():
                 umamusume = Umamusume.objects.create(
@@ -88,6 +105,11 @@ class Command(BaseCommand):
 
     # ------------------ SCENARIO RACE ------------------ #
     def load_scenario_races(self, scenario_data, umamusume):
+        """シナリオレースデータをロードするメソッド
+        * @param scenario_data シナリオデータ辞書
+        * @param umamusume ウマ娘オブジェクト
+        * @return None
+        """
         race_number = 1
         random_group = 1
         
@@ -111,6 +133,13 @@ class Command(BaseCommand):
                 race_number += 1
 
     def create_scenario_race(self, race_info, umamusume, race_number, random_group):
+        """シナリオレースを作成するメソッド
+        * @param race_info レース情報
+        * @param umamusume ウマ娘オブジェクト
+        * @param race_number レース番号
+        * @param random_group ランダムグループ
+        * @return None
+        """
         if isinstance(race_info, dict):
             race_name = race_info['名前']
             senior_flag = race_info.get('時期') == 'シニア'
@@ -134,6 +163,10 @@ class Command(BaseCommand):
 
     # ------------------ LIVE ------------------ #
     def load_lives(self, live_data):
+        """ライブデータをロードするメソッド
+        * @param live_data ライブデータ辞書
+        * @return None
+        """
         for live_name, live_info in live_data.items():
             if not Live.objects.filter(live_name=live_info['曲名']).exists():
                 live = Live.objects.create(
@@ -161,6 +194,10 @@ class Command(BaseCommand):
 
     # ------------------ HELPERS ------------------ #
     def get_race_distance(self, distance_str):
+        """距離文字列を数値に変換するメソッド
+        * @param distance_str 距離文字列
+        * @return int 距離数値
+        """
         distance_map = {
             '短距離': 1,
             'マイル': 2,
@@ -170,6 +207,10 @@ class Command(BaseCommand):
         return distance_map.get(distance_str, 1)
 
     def get_race_rank(self, rank_str):
+        """レースランク文字列を数値に変換するメソッド
+        * @param rank_str ランク文字列
+        * @return int ランク数値
+        """
         rank_map = {
             'G1': 1,
             'G2': 2,
@@ -180,6 +221,10 @@ class Command(BaseCommand):
         return rank_map.get(rank_str, 1)
     
     def format_date(self, date_str):
+        """日付文字列をdatetimeオブジェクトに変換するメソッド
+        * @param date_str 日付文字列
+        * @return date 日付オブジェクト
+        """
         if date_str.startswith('9999/'):
             date_str = date_str.replace('9999/', '1999/')
         try:

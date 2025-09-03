@@ -16,7 +16,10 @@ from .calculations import calculate_aptitude_factors
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def acter_list(request):
-    """声優のリストをデータベースから取得するAPI"""
+    """声優のリストをデータベースから取得するAPI
+    * @param request HTTPリクエストオブジェクト
+    * @return Response 声優リストデータ
+    """
     logger = UmamusumeLog(request)
     logger.logwrite('start', 'acterList')
     
@@ -33,7 +36,13 @@ def acter_list(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def jewel_list(request):
-    """ジュエルのリストをデータベースから取得するAPI"""
+    """ジュエルのリストをデータベースから取得するAPI
+    * @param request HTTPリクエストオブジェクト
+    * @param request.user.user_id ユーザーID
+    * @param request.data.year 年
+    * @param request.data.month 月
+    * @return Response ジュエルリストデータ
+    """
     logger = UmamusumeLog(request)
     logger.logwrite('start', 'jewelList')
     
@@ -59,7 +68,12 @@ def jewel_list(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def jewel_regist(request):
-    """当日のジュエルを登録するAPI"""
+    """当日のジュエルを登録するAPI
+    * @param request HTTPリクエストオブジェクト
+    * @param request.user.user_id ユーザーID
+    * @param request.data.jewel ジュエル金額
+    * @return Response 登録完了メッセージ
+    """
     logger = UmamusumeLog(request)
     logger.logwrite('start', 'jewelRegist')
     
@@ -86,7 +100,10 @@ def jewel_regist(request):
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def live_list(request):
-    """ライブのリストをデータベースから取得するAPI"""
+    """ライブのリストをデータベースから取得するAPI
+    * @param request HTTPリクエストオブジェクト
+    * @return Response ライブリストデータ
+    """
     logger = UmamusumeLog(request)
     logger.logwrite('start', 'liveList')
     
@@ -103,7 +120,11 @@ def live_list(request):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def umamusume_list_by_live(request):
-    """ライブのIDを引数として、紐づくウマ娘の情報をDBから取得するAPI"""
+    """ライブのIDを引数として、紐づくウマ娘の情報をDBから取得するAPI
+    * @param request HTTPリクエストオブジェクト
+    * @param request.data.liveId ライブID
+    * @return Response ウマ娘リストデータ
+    """
     logger = UmamusumeLog(request)
     logger.logwrite('start', 'umamusumeListByLive')
     
@@ -122,7 +143,11 @@ def umamusume_list_by_live(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def umamusume_regist_list(request):
-    """ユーザーが登録していない、ウマ娘情報を取得するAPI"""
+    """ユーザーが登録していない、ウマ娘情報を取得するAPI
+    * @param request HTTPリクエストオブジェクト
+    * @param request.user.user_id ユーザーID
+    * @return Response 未登録ウマ娘リストデータ
+    """
     logger = UmamusumeLog(request)
     logger.logwrite('start', 'umamusumeRegistList')
     
@@ -141,7 +166,14 @@ def umamusume_regist_list(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def umamusume_regist(request):
-    """ユーザーが選択した、ウマ娘のデータを登録するAPI"""
+    """ユーザーが選択した、ウマ娘のデータを登録するAPI
+    * @param request HTTPリクエストオブジェクト
+    * @param request.user.user_id ユーザーID
+    * @param request.data.umamusumeId ウマ娘ID
+    * @param request.data.raceIdArray レースID配列
+    * @param request.data.fans ファン数
+    * @return Response 登録完了メッセージ
+    """
     logger = UmamusumeLog(request)
     logger.logwrite('start', 'umamusumeRegist')
     
@@ -176,7 +208,11 @@ def umamusume_regist(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def user_regist_umamusume(request):
-    """ユーザーが登録したウマ娘の情報を取得するAPI"""
+    """ユーザーが登録したウマ娘の情報を取得するAPI
+    * @param request HTTPリクエストオブジェクト
+    * @param request.user.user_id ユーザーID
+    * @return Response 登録済みウマ娘リストデータ
+    """
     logger = UmamusumeLog(request)
     logger.logwrite('start', 'userRegistUmamusume')
     
@@ -194,7 +230,13 @@ def user_regist_umamusume(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def fan_up(request):
-    """ユーザーが入力したファン数をユーザーが登録したウマ娘データに反映させるAPI"""
+    """ユーザーが入力したファン数をユーザーが登録したウマ娘データに反映させるAPI
+    * @param request HTTPリクエストオブジェクト
+    * @param request.user.user_id ユーザーID
+    * @param request.data.umamusumeId ウマ娘ID
+    * @param request.data.fans ファン数
+    * @return Response 更新完了メッセージ
+    """
     logger = UmamusumeLog(request)
     logger.logwrite('start', 'fanUp')
     
@@ -214,7 +256,10 @@ def fan_up(request):
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def umamusume_list(request):
-    """ウマ娘情報を取得するAPI"""
+    """ウマ娘情報を取得するAPI
+    * @param request HTTPリクエストオブジェクト
+    * @return Response ウマ娘リストデータ
+    """
     logger = UmamusumeLog(request)
     logger.logwrite('start', 'umamusumLList')
     
@@ -234,7 +279,16 @@ def umamusume_list(request):
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def calculate_parent_factors(request):
-    """因子情報を取得するAPI"""
+    """因子情報を取得するAPI
+    * @param request HTTPリクエストオブジェクト
+    * @param request.GET.distance_id 距離ID
+    * @param request.GET.surface_id コースID
+    * @param request.GET.style_id 脚質ID
+    * @param request.GET.parent_umamusume_id 親ウマ娘ID
+    * @param request.GET.grandparent_umamusume_id 祖父ウマ娘ID
+    * @param request.GET.grandmother_umamusume_id 祖母ウマ娘ID
+    * @return Response 因子情報データ
+    """
     logger = UmamusumeLog(request)
     logger.logwrite('start', 'calculate_parent_factors')
     
@@ -303,7 +357,11 @@ def calculate_parent_factors(request):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def user_register(request):
-    """ユーザーを登録するAPI"""
+    """ユーザーを登録するAPI
+    * @param request HTTPリクエストオブジェクト
+    * @param request.data ユーザー登録データ
+    * @return Response 登録結果メッセージ
+    """
     logger = UmamusumeLog(request)
     logger.logwrite('start', 'userRegister')
     
@@ -327,7 +385,12 @@ def user_register(request):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def user_login(request):
-    """ユーザーログインAPI"""
+    """ユーザーログインAPI
+    * @param request HTTPリクエストオブジェクト
+    * @param request.data.userName ユーザー名
+    * @param request.data.password パスワード
+    * @return Response ログイン結果とトークン
+    """
     logger = UmamusumeLog(request)
     logger.logwrite('start', 'userLogin')
     
@@ -360,7 +423,10 @@ def user_login(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def user_logout(request):
-    """ログアウトのためのAPI"""
+    """ログアウトのためのAPI
+    * @param request HTTPリクエストオブジェクト
+    * @return Response ログアウト完了メッセージ
+    """
     logger = UmamusumeLog(request)
     logger.logwrite('start', 'userLogout')
     
@@ -376,7 +442,11 @@ def user_logout(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_user_data(request):
-    """ログイン中のユーザー情報を取得するAPI"""
+    """ログイン中のユーザー情報を取得するAPI
+    * @param request HTTPリクエストオブジェクト
+    * @param request.user ログインユーザー
+    * @return Response ユーザー情報データ
+    """
     logger = UmamusumeLog(request)
     logger.logwrite('start', 'getUserData')
     

@@ -1,7 +1,9 @@
 def calculate_aptitude_factors(umamusume, base_factor_style):
-    """
-    ウマ娘の適性に基づいて因子を計算し、返します。
+    """ウマ娘の適性に基づいて因子を計算し、返します。
     優先順位: マイル > 中距離 > 長距離 > ダート
+    * @param umamusume ウマ娘オブジェクト
+    * @param base_factor_style ベース因子スタイル
+    * @return tuple 因子ペア (factor_one, factor_two)
     """
     # ウマ娘情報がない場合はデフォルト値を返す
     if not umamusume:

@@ -1,6 +1,10 @@
 from .models import ScenarioRace
 def getbreedingCountData( umamusume , remaining_races ):
-    #全冠までの目安育成数を計算するロジックをここに実装
+    """全冠までの目安育成数を計算する関数
+    * @param umamusume ウマ娘オブジェクト
+    * @param remaining_races 残レースのクエリセット
+    * @return int 必要な育成回数
+    """
     
     # 1. ウマ娘に紐づくシナリオレースを取得
     scenario_races = ScenarioRace.objects.filter(umamusume_id=umamusume.umamusume_id)
