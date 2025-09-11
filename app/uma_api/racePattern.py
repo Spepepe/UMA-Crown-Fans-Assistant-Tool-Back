@@ -367,8 +367,7 @@ def get_race_pattern_data(count, user_id, umamusume_id):
             for half in [0, 1]:
                 matching_race = None
                 
-                # ジュニア期はremaining_racesから検索
-                for race in remaining_races:
+                for race in conflicting_races:
                     if (race.race_months == month and race.half_flag == half and 
                         race.junior_flag and race.race_id not in used_races):
                         matching_race = race
@@ -464,16 +463,22 @@ def get_race_pattern_data(count, user_id, umamusume_id):
                (r['month'] == 10 and r['half'] == 0)    # 10月前半
         )
         
-        # シニア7月以降に残レースがあるかチェック（フォワ賞のタイミングを除く）
+        # シニア6月前半以降に残レースがあるかチェック
         senior_late_races = any(
             r['race_name'] for r in pattern['senior']
-            if (r['month'] >= 7) and  # 7月以降のみチェック
-               not (r['month'] == 9 and r['half'] == 0)     # フォワ賞のタイミングを除く
+            if (r['month'] >= 7 or (r['month'] == 6 and r['half'] == 1))
+        )
+
+        # ラークシナリオのレースと被るレースがすでに適用されているか検証
+        larc_scenario_race_names = any(
+            r['race_name'] for r in pattern['classic']
+            if (r['month'] == 5 and r['half'] == 1 and r['race_name'] != '日本ダービー')
         )
         
         # ラークシナリオの条件: 残レースがなく、まだ作成していない
         if (not classic_summer_autumn_races and 
-            not senior_late_races and 
+            not senior_late_races and
+            not larc_scenario_race_names and 
             not larc_created):
             is_larc_scenario = True
             larc_created = True
