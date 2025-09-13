@@ -10,6 +10,7 @@ from user_agents import parse
 from .models import *
 from .serializers import *
 from .utils import UmamusumeLog
+from itertools import permutations
 from .calculations import calculate_aptitude_factors
 
 
@@ -345,7 +346,12 @@ def calculate_parent_factors(request):
             }
         }
 
-        return Response({'data': response_data})
+        # フロントエンドが期待する`patterns`配列でラップして返す
+        patterns = [{
+            "name": "計算結果",
+            "factors": response_data["inheritance_factors"]
+        }]
+        return Response({'data': {'patterns': patterns}})
 
     except Exception as e:
         logger.logwrite('error', f'umamusumeList:{e}')
