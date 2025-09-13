@@ -86,18 +86,53 @@ def fill_empty_slots_with_any_races(pattern, remaining_races, used_races):
         if not added_any_race:
             break
 
-def calculate_factor_composition(umamusume_data, pattern_races, reinforcement_strategy=None):
+def calculate_factor_composition(umamusume_data, pattern_races, reinforcement_strategy=None, is_larc=False):
     """ウマ娘の適性とパターン内レースを元に因子構成を計算
     * @param umamusume_data ウマ娘データオブジェクト
     * @param pattern_races パターン内レースリスト
     * @param reinforcement_strategy 補強戦略辞書 (例: {'ダート': 3, 'マイル': 3})
+    * @param is_larc ラークシナリオかどうか
     * @return list 因子構成リスト (6個)
     """
     factors = []
+    aptitude_map = {'S': 4, 'A': 3, 'B': 2, 'C': 1, 'D': 0, 'E': -1, 'F': -2, 'G': -3}
     
+    current_strategy = reinforcement_strategy
+    # ラークシナリオの場合、戦略から「芝」と「中距離」を除外
+    if is_larc and current_strategy:
+        current_strategy = {k: v for k, v in current_strategy.items() if k not in ['芝', '中距離']}
+
+        # G適性の因子が残っている場合、個数を4に増やす
+        aptitudes_data = {
+            '芝': umamusume_data.turf_aptitude, 'ダート': umamusume_data.dirt_aptitude,
+            '短距離': umamusume_data.sprint_aptitude, 'マイル': umamusume_data.mile_aptitude,
+            '中距離': umamusume_data.classic_aptitude, '長距離': umamusume_data.long_distance_aptitude,
+        }
+        
+        temp_strategy = {}
+        total_factors = 0
+        for factor, num in current_strategy.items():
+            aptitude_char = aptitudes_data.get(factor, 'A')
+            new_num = num
+            # G適性なら因子を4つに増やす
+            if aptitude_map.get(aptitude_char, 0) <= -3:
+                new_num = 4
+            
+            # 合計が6を超えないように調整
+            if total_factors + new_num <= 6:
+                temp_strategy[factor] = new_num
+                total_factors += new_num
+            elif total_factors + num <= 6:
+                temp_strategy[factor] = num
+                total_factors += num
+        current_strategy = temp_strategy
+
+        if not current_strategy:
+            current_strategy = None # 戦略が空になったら通常計算
+
     # 戦略が指定されている場合は、それを最優先で適用
-    if reinforcement_strategy:
-        for factor, num in reinforcement_strategy.items():
+    if current_strategy:
+        for factor, num in current_strategy.items():
             factors.extend([factor] * num)
         # 残りを「自由」で埋める
         while len(factors) < 6:
@@ -106,7 +141,6 @@ def calculate_factor_composition(umamusume_data, pattern_races, reinforcement_st
 
     # --- 以下は戦略が指定されていない場合の既存ロジック ---
     # 適性を数値化 (S=4, A=3, B=2, C=1, D=0, E=-1, F=-2, G=-3)
-    aptitude_map = {'S': 4, 'A': 3, 'B': 2, 'C': 1, 'D': 0, 'E': -1, 'F': -2, 'G': -3}
     
     turf_aptitude = aptitude_map.get(umamusume_data.turf_aptitude, 0)
     dirt_aptitude = aptitude_map.get(umamusume_data.dirt_aptitude, 0)
@@ -114,6 +148,11 @@ def calculate_factor_composition(umamusume_data, pattern_races, reinforcement_st
     mile_aptitude = aptitude_map.get(umamusume_data.mile_aptitude, 0)
     classic_aptitude = aptitude_map.get(umamusume_data.classic_aptitude, 0)
     long_aptitude = aptitude_map.get(umamusume_data.long_distance_aptitude, 0)
+    
+    # ラークシナリオの場合、芝と中距離適性をAとして扱う
+    if is_larc:
+        turf_aptitude = 3  # 'A'
+        classic_aptitude = 3  # 'A'
     
     # パターン内レースの馬場・距離を集計
     surface_usage = {0: False, 1: False}  # 0: 芝, 1: ダート
@@ -125,80 +164,50 @@ def calculate_factor_composition(umamusume_data, pattern_races, reinforcement_st
         distance_usage[race.distance] = True
         distance_count[race.distance] += 1
     
-    # デバッグ: 適性と使用状況を確認
+    # 補強対象の適性をリストアップ (優先度順)
+    aptitudes_to_fix = []
+    # 距離
+    if distance_usage[4] and long_aptitude <= 1: aptitudes_to_fix.append((long_aptitude, '長距離'))
+    if distance_usage[3] and classic_aptitude <= 1: aptitudes_to_fix.append((classic_aptitude, '中距離'))
+    if distance_usage[2] and mile_aptitude <= 1: aptitudes_to_fix.append((mile_aptitude, 'マイル'))
+    if distance_usage[1] and sprint_aptitude <= 1: aptitudes_to_fix.append((sprint_aptitude, '短距離'))
+    # 馬場
+    if surface_usage[1] and dirt_aptitude <= 1: aptitudes_to_fix.append((dirt_aptitude, 'ダート'))
+    if surface_usage[0] and turf_aptitude <= 1: aptitudes_to_fix.append((turf_aptitude, '芝'))
 
-    # 6個すべて埋めるまでループ
-    while len(factors) < 6:
-        added = False
-        
-        # 馬場適性を優先
-        for surface_state, surface_name in [(1, 'ダート'), (0, '芝')]:
-            if surface_usage[surface_state]:
-                current_aptitude = dirt_aptitude if surface_state == 1 else turf_aptitude
-                current_count = factors.count(surface_name)
-                # 適性別に必要な因子数を計算
-                needed_factors = 0
-                if current_aptitude == -3:  # G
-                    needed_factors = 4
-                elif current_aptitude == -2:  # F
-                    needed_factors = 4
-                elif current_aptitude == -1:  # E
-                    needed_factors = 4
-                elif current_aptitude == 0:  # D
-                    needed_factors = 3
-                elif current_aptitude == 1:  # C
-                    needed_factors = 2
-                elif current_aptitude == 2:  # B
-                    needed_factors = 1
-                
-                if current_count < needed_factors:
-                    factors.append(surface_name)
-                    added = True
-                    break
-        
-        if added:
+    # 適性が低い順でソート (同じ適性値なら上記の優先度順が維持される)
+    aptitudes_to_fix.sort(key=lambda x: x[0])
+
+    # G,F,E適性の数を数える
+    low_apt_to_fix = [name for apt, name in aptitudes_to_fix if apt <= -1]
+
+    for aptitude, factor_name in aptitudes_to_fix:
+        if len(factors) >= 6: 
+            break
+
+        # 既に因子が追加されている場合は、次の候補へ
+        if any(f == factor_name for f in factors):
             continue
-        
-        # 距離適性を低い順に優先
-        distance_priorities = []
-        if distance_usage[1]:  # 短距離
-            distance_priorities.append((sprint_aptitude, '短距離', distance_count[1]))
-        if distance_usage[2]:  # マイル
-            distance_priorities.append((mile_aptitude, 'マイル', distance_count[2]))
-        if distance_usage[3]:  # 中距離
-            distance_priorities.append((classic_aptitude, '中距離', distance_count[3]))
-        if distance_usage[4]:  # 長距離
-            distance_priorities.append((long_aptitude, '長距離', distance_count[4]))
-        
-        # 適性の低い順にソート、同じ場合は使用回数の多い順
-        distance_priorities.sort(key=lambda x: (x[0], -x[2]))
-        
-        for aptitude, factor_name, count in distance_priorities:
-            current_count = factors.count(factor_name)
-            # 適性別に必要な因子数を計算
-            needed_factors = 0
-            if aptitude == -3:  # G
-                needed_factors = 4
-            elif aptitude == -2:  # F
-                needed_factors = 4
-            elif aptitude == -1:  # E
-                needed_factors = 4
-            elif aptitude == 0:  # D
-                needed_factors = 3
-            elif aptitude == 1:  # C
-                needed_factors = 2
-            elif aptitude == 2:  # B
-                needed_factors = 1
-            
-            if current_count < needed_factors:
-                factors.append(factor_name)
-                added = True
-                break
-        
-        if not added:
-            factors.append('自由')  # これ以上追加できない場合
 
-    
+        needed_factors = 0
+        if aptitude <= -1:  # G, F, E
+            # 補強対象の低適性が複数ある場合は3、1つだけなら4を割り当てる
+            if len(low_apt_to_fix) >= 2:
+                needed_factors = 3
+            else: # 1つだけ
+                needed_factors = 4
+        elif aptitude == 0:  # D
+            needed_factors = 3
+        elif aptitude == 1:  # C
+            needed_factors = 2
+        
+        # 残りの因子スロットが足りる場合のみ、まとめて追加
+        if len(factors) + needed_factors <= 6:
+            factors.extend([factor_name] * needed_factors)
+
+    # 残りを「自由」で埋める
+    while len(factors) < 6:
+        factors.append('自由')
 
     return factors[:6]
 
@@ -210,6 +219,7 @@ def _get_reinforcement_strategies(umamusume_data):
     aptitude_map = {'S': 4, 'A': 3, 'B': 2, 'C': 1, 'D': 0, 'E': -1, 'F': -2, 'G': -3}
     
     aptitudes = {
+        '芝': aptitude_map.get(umamusume_data.turf_aptitude, 0),
         'ダート': aptitude_map.get(umamusume_data.dirt_aptitude, 0),
         '短距離': aptitude_map.get(umamusume_data.sprint_aptitude, 0),
         'マイル': aptitude_map.get(umamusume_data.mile_aptitude, 0),
@@ -239,6 +249,7 @@ def _filter_races_by_strategy(races, strategy, umamusume_data):
 
     aptitude_map = {'S': 4, 'A': 3, 'B': 2, 'C': 1, 'D': 0, 'E': -1, 'F': -2, 'G': -3}
     aptitudes = {
+        '芝': aptitude_map.get(umamusume_data.turf_aptitude, 0),
         'ダート': aptitude_map.get(umamusume_data.dirt_aptitude, 0),
         '短距離': aptitude_map.get(umamusume_data.sprint_aptitude, 0),
         'マイル': aptitude_map.get(umamusume_data.mile_aptitude, 0),
@@ -259,6 +270,9 @@ def _filter_races_by_strategy(races, strategy, umamusume_data):
     
     def is_race_supported(race):
         """このレースが現在の戦略でサポートされているかを判定する"""
+        # 戦略でサポート外の芝レースは除外
+        if '芝' in unsupported_low_aptitudes and race.race_state == 0:
+            return False
         # 戦略でサポート外のダートレースは除外
         if 'ダート' in unsupported_low_aptitudes and race.race_state == 1:
             return False
@@ -274,11 +288,22 @@ def _filter_races_by_strategy(races, strategy, umamusume_data):
 
 def _get_race_grade(race, scenario_info=None):
     """レースの級（'junior', 'classic', 'senior'）を判定する"""
-    # ScenarioRaceの情報があれば優先
-    if scenario_info and scenario_info.senior_flag is not None:
-        return 'senior' if scenario_info.senior_flag == 1 else 'classic'
-    
-    # Raceオブジェクトのフラグで判定
+    # ScenarioRaceの情報があれば、それを最優先する
+    if scenario_info:
+        # シニア級の目標レースとして指定されているか
+        if scenario_info.senior_flag == 1:
+            return 'senior'
+        
+        # シニア級でない場合、クラシック級かジュニア級かを判定する
+        # ジュニア級でしか開催されないレースか？
+        if race.junior_flag == 1 and not race.classic_flag:
+            return 'junior'
+        
+        # 上記以外はクラシック級の目標とみなす
+        return 'classic'
+
+    # ScenarioRaceの情報がない場合（通常の残レースなど）、Raceオブジェクトのフラグで判定
+    # シニア級でも開催されるならシニアを優先
     if race.senior_flag == 1:
         return 'senior'
     if race.classic_flag == 1:
@@ -560,7 +585,7 @@ def get_race_pattern_data(count, user_id, umamusume_id):
         _calculate_and_set_main_conditions(pattern, final_races_in_pattern)
         
         # 3.8. 因子構成と合計レース数を計算
-        pattern['factors'] = calculate_factor_composition(umamusume_data, final_races_in_pattern, reinforcement_strategy=strategy)
+        pattern['factors'] = calculate_factor_composition(umamusume_data, final_races_in_pattern, reinforcement_strategy=strategy, is_larc=is_larc)
         pattern['totalRaces'] = len(final_races_in_pattern)
         
         # このイテレーションで新しいレースが追加されたかチェック
@@ -575,40 +600,57 @@ def get_race_pattern_data(count, user_id, umamusume_id):
         if pattern_index >= 20:
             break
     
-    # --- 4. 最終シナリオパターン生成 ---
-    # 競合やラークで埋まらなかったスロットをシナリオレースで埋めるパターンを最後に追加
+    # --- 4. シナリオレースの取り扱い ---
+    found_non_conflicting_pattern = False
     if scenario_races:
-        # 4.1 パターンの器を作成
-        scenario_pattern = {
-            "scenario": "最新",
-            "strategy": None, # シナリオパターンは特定の補強戦略を持たない
-            "junior": [], "classic": [], "senior": []
-        }
-        # 4.2 カレンダーの枠を作成
+        # 4.1 シナリオレースとタイミングが被らないパターン(A)を探す
+        for i, pattern in enumerate(patterns):
+            is_conflicting = any(
+                race_data['race_name']
+                for sr in scenario_races
+                for race_data in pattern[_get_race_grade(sr.race, sr)]
+                if race_data['month'] == sr.race.race_months and race_data['half'] == sr.race.half_flag
+            )
+
+            if not is_conflicting:
+                # 4.2 (A)にシナリオレースをマージし、シナリオを「最新」として扱う
+                for sr in scenario_races:
+                    race = sr.race
+                    grade = _get_race_grade(race, sr)
+                    for race_data in patterns[i][grade]:
+                        if race_data['month'] == race.race_months and race_data['half'] == race.half_flag and not race_data['race_name']:
+                            race_data['race_name'] = race.race_name
+                            break
+                
+                patterns[i]['scenario'] = "最新"
+                patterns[i]['strategy'] = None
+                
+                final_races_in_pattern = _get_all_races_in_pattern(patterns[i], all_g_races)
+                _calculate_and_set_main_conditions(patterns[i], final_races_in_pattern)
+                patterns[i]['factors'] = calculate_factor_composition(umamusume_data, final_races_in_pattern)
+                patterns[i]['totalRaces'] = len(final_races_in_pattern)
+                
+                found_non_conflicting_pattern = True
+                break
+
+    # 4.3 (A)がなければ、従来通り最後にシナリオレース用のパターンを追加
+    if scenario_races and not found_non_conflicting_pattern:
+        scenario_pattern = {"scenario": "最新", "strategy": None, "junior": [], "classic": [], "senior": []}
         for grade_name, month_range in [('junior', range(7, 13)), ('classic', range(1, 13)), ('senior', range(1, 13))]:
             for month in month_range:
                 for half in [0, 1]:
                     scenario_pattern[grade_name].append({"race_name": "", "month": month, "half": half})
 
-        # 4.3 シナリオレースを配置
         for sr in scenario_races:
             race = sr.race
             grade = _get_race_grade(race, sr)
             for race_data in scenario_pattern[grade]:
                 if race_data['month'] == race.race_months and race_data['half'] == race.half_flag:
                     race_data['race_name'] = race.race_name
-                    # used_races には最初から入っているので追加は不要
                     break
         
-        # 4.4 空きスロットを埋める
-        # このパターンでの主要な馬場・距離を計算
-        races_in_pattern = _get_all_races_in_pattern(scenario_pattern, all_g_races)
-        most_common_surface, most_common_distance = _calculate_and_set_main_conditions(scenario_pattern, races_in_pattern)
-        
-        # 残り物で埋める (このパターンは戦略を持たないので、G1優先などで埋められる)
         fill_empty_slots_with_any_races(scenario_pattern, list(remaining_races_qs), used_races)
 
-        # 4.5 最終的な統計情報を計算
         final_races_in_pattern = _get_all_races_in_pattern(scenario_pattern, all_g_races)
         _calculate_and_set_main_conditions(scenario_pattern, final_races_in_pattern)
         scenario_pattern['factors'] = calculate_factor_composition(umamusume_data, final_races_in_pattern)
