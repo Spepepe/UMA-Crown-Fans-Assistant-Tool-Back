@@ -11,6 +11,7 @@ from .models import *
 from .serializers import *
 from .utils import UmamusumeLog
 from itertools import permutations
+import json
 from .calculations import calculate_aptitude_factors
 
 
@@ -316,45 +317,79 @@ def calculate_parent_factors(request):
         grandparent_umamusume = Umamusume.objects.filter(umamusume_id=grandparent_umamusume_id).first()
         grandmother_umamusume = Umamusume.objects.filter(umamusume_id=grandmother_umamusume_id).first()
 
-        # 祖祖父母の因子を特定の値で設定
-        grandparent_a_aa = surface
-        grandparent_a_ab = style
-        grandparent_b_ba = surface
-        grandparent_b_bb = style
-
         # 祖父母Aの適性因子を計算
-        factor_aab, factor_abb = calculate_aptitude_factors(grandparent_umamusume, style)
+        factor_a_1, factor_a_2 = calculate_aptitude_factors(grandparent_umamusume, surface, style)
 
         # 祖父母Bの適性因子を計算
-        factor_bab, factor_bbb = calculate_aptitude_factors(grandmother_umamusume, style)
-        
-        # 最後に整形して返す
-        response_data = {
-            "inheritance_factors": {
-                "grandparent_a": {
-                    "aaa": surface,
-                    "aab": factor_aab,
-                    "aba": style,
-                    "abb": factor_abb
-                },
-                "grandparent_b": {
-                    "baa": surface,
-                    "bab": factor_bab,
-                    "bba": style,
-                    "bbb": factor_bbb
-                }
-            }
-        }
+        factor_b_1, factor_b_2 = calculate_aptitude_factors(grandmother_umamusume, surface, style)
 
-        # フロントエンドが期待する`patterns`配列でラップして返す
-        patterns = [{
-            "name": "計算結果",
-            "factors": response_data["inheritance_factors"]
-        }]
-        return Response({'data': {'patterns': patterns}})
+        # --- パターン生成ロジック ---
+        all_patterns = []
+
+        # 1. Main Factor (aaa, aba, baa, bba) の組み合わせを生成
+        #    - {芝, 芝, 差し, 差し} の組み合わせ
+        main_factors_pool = (surface, surface, style, style)
+        main_permutations = sorted(list(set(permutations(main_factors_pool)))) # 6通りのユニークな順列
+
+        # 2. Sub Factor (aab, abb, bab, bbb) の組み合わせを生成
+        #    - 祖父母Aの計算因子 (factor_a_1, factor_a_2)
+        #    - 祖父母Bの計算因子 (factor_b_1, factor_b_2)
+        sub_a_perms = sorted(list(set(permutations((factor_a_1, factor_a_2)))))
+        sub_b_perms = sorted(list(set(permutations((factor_b_1, factor_b_2)))))
+
+        # 3. MainとSubの全組み合わせを生成
+        for p_main in main_permutations:
+            for p_sub_a in sub_a_perms:
+                for p_sub_b in sub_b_perms:
+                    # 祖父母Aの因子を構築
+                    grandparent_a_factors = {
+                        "aaa": p_main[0],
+                        "aba": p_main[1],
+                        "aab": p_sub_a[0],
+                        "abb": p_sub_a[1],
+                    }
+                    # 祖父母Bの因子を構築
+                    grandparent_b_factors = {
+                        "baa": p_main[2],
+                        "bba": p_main[3],
+                        "bab": p_sub_b[0],
+                        "bbb": p_sub_b[1],
+                    }
+
+                    # 稀なケース：AとBのMain因子が入れ替わっただけのパターンも生成
+                    # 例: (aaa=S, aba=S), (baa=T, bba=T) と (aaa=T, aba=T), (baa=S, bba=S)
+                    grandparent_a_factors_swapped = {
+                        "aaa": p_main[2],
+                        "aba": p_main[3],
+                        "aab": p_sub_a[0],
+                        "abb": p_sub_a[1],
+                    }
+                    grandparent_b_factors_swapped = {
+                        "baa": p_main[0],
+                        "bba": p_main[1],
+                        "bab": p_sub_b[0],
+                        "bbb": p_sub_b[1],
+                    }
+
+                    all_patterns.append({"factors": {"grandparent_a": grandparent_a_factors, "grandparent_b": grandparent_b_factors}})
+                    all_patterns.append({"factors": {"grandparent_a": grandparent_a_factors_swapped, "grandparent_b": grandparent_b_factors_swapped}})
+
+        # 最終的に生成されたパターンの中から重複を削除する
+        unique_patterns = []
+        seen_factors_str = set()
+        for p in all_patterns:
+            # factorsオブジェクトをJSON文字列に変換して比較
+            factors_str = json.dumps(p['factors'], sort_keys=True)
+            if factors_str not in seen_factors_str:
+                # パターン名を追加してユニークリストに追加
+                p["name"] = f"{len(unique_patterns) + 1}"
+                unique_patterns.append(p)
+                seen_factors_str.add(factors_str)
+
+        return Response({'data': {'patterns': unique_patterns}})
 
     except Exception as e:
-        logger.logwrite('error', f'umamusumeList:{e}')
+        logger.logwrite('error', f'calculate_parent_factors:{e}')
         return Response({'error': '因子情報取得エラー'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
