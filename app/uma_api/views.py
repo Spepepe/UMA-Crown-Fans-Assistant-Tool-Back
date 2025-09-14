@@ -343,6 +343,8 @@ def calculate_parent_factors(request):
                 for p_sub_b in sub_b_perms:
                     # 祖父母Aの因子を構築
                     grandparent_a_factors = {
+                        "aa": style if p_main[0] ==  surface else surface,
+                        "ab": style if p_main[1] ==  surface else surface,
                         "aaa": p_main[0],
                         "aba": p_main[1],
                         "aab": p_sub_a[0],
@@ -350,6 +352,8 @@ def calculate_parent_factors(request):
                     }
                     # 祖父母Bの因子を構築
                     grandparent_b_factors = {
+                        "ba": style if p_main[2] ==  surface else surface,
+                        "bb": style if p_main[3] ==  surface else surface,
                         "baa": p_main[2],
                         "bba": p_main[3],
                         "bab": p_sub_b[0],
@@ -359,12 +363,16 @@ def calculate_parent_factors(request):
                     # 稀なケース：AとBのMain因子が入れ替わっただけのパターンも生成
                     # 例: (aaa=S, aba=S), (baa=T, bba=T) と (aaa=T, aba=T), (baa=S, bba=S)
                     grandparent_a_factors_swapped = {
+                        "aa": style if p_main[2] ==  surface else surface,
+                        "ab": style if p_main[3] ==  surface else surface,
                         "aaa": p_main[2],
                         "aba": p_main[3],
                         "aab": p_sub_a[0],
                         "abb": p_sub_a[1],
                     }
                     grandparent_b_factors_swapped = {
+                        "ba":  style if p_main[0] ==  surface else surface,
+                        "bb":  style if p_main[1] ==  surface else surface,
                         "baa": p_main[0],
                         "bba": p_main[1],
                         "bab": p_sub_b[0],
