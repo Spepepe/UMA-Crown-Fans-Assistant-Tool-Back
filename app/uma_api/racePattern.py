@@ -413,10 +413,11 @@ def _create_base_pattern(conflicting_races, used_races, preferred_surface, prefe
     return pattern, has_conflicting_races
 
 
-def _apply_larc_scenario_if_applicable(pattern, larc_created, race_map):
+def _apply_larc_scenario_if_applicable(pattern, larc_created, race_map, used_races , scenario_races):
     """ラークシナリオの条件をチェックし、適用可能であればパターンを更新する"""
     if larc_created:
-        return False, True
+        return False, True, used_races
+
 
     classic_summer_autumn_races = any(
         r['race_name'] for r in pattern['classic']
@@ -442,12 +443,15 @@ def _apply_larc_scenario_if_applicable(pattern, larc_created, race_map):
             for idx, race_data in enumerate(pattern[grade]):
                 for month, half, name in races:
                     if race_data['month'] == month and race_data['half'] == half and not race_data['race_name']:
-                        pattern[grade][idx]['race_name'] = name
                         race_id = race_map.get((name, month, half))
-                        pattern[grade][idx]['race_id'] = race_id
+                        # race_idが見つかった場合のみパターンとused_racesを更新
+                        if race_id:
+                            pattern[grade][idx]['race_name'] = name
+                            pattern[grade][idx]['race_id'] = race_id
+                            used_races.add(race_id)
                         break
-        return True, True
-    return False, False
+        return True, True, used_races
+    return False, False, used_races
 
 
 def _determine_and_apply_scenario(pattern, is_larc, has_conflicts, is_scenario_pattern=False):
@@ -538,8 +542,13 @@ def get_race_pattern_data(count, user_id, umamusume_id):
     
     # --- 3. パターン生成ループ ---
     patterns = []
-    larc_created = False
-
+    
+    # ラーク主要レース（凱旋門賞、ニエル賞、フォワ賞）が一つも残っていない場合、
+    # ラークパターンは作成済みか作成不可能とみなし、フラグをTrueに設定する
+    larc_key_race_names = {'凱旋門賞', 'ニエル賞', 'フォワ賞'}
+    has_remaining_larc_races = remaining_races_qs.filter(race_name__in=larc_key_race_names).exists()
+    larc_created = not has_remaining_larc_races
+    
     # 全パターンで共有する使用済みレースIDセット
     # ループの外で一度だけ初期化し、パターン間で重複が起きないようにする
     used_races = _initialize_used_races(scenario_race_ids, remaining_races_qs)
@@ -568,8 +577,7 @@ def get_race_pattern_data(count, user_id, umamusume_id):
         pattern['strategy'] = strategy # 表示やデバッグ用に戦略を記録
 
         # 3.3. ラークシナリオ判定 & 適用
-        is_larc, larc_created = _apply_larc_scenario_if_applicable(pattern, larc_created, race_map)
-
+        is_larc, larc_created, used_races = _apply_larc_scenario_if_applicable(pattern, larc_created, race_map, used_races , scenario_races)
         # 3.4. シナリオ名決定 & 適用
         _determine_and_apply_scenario(pattern, is_larc, has_conflicts)
 
@@ -585,12 +593,13 @@ def get_race_pattern_data(count, user_id, umamusume_id):
         final_races_in_pattern = _get_all_races_in_pattern(pattern, all_g_races)
         _calculate_and_set_main_conditions(pattern, final_races_in_pattern)
         
+    
         # 3.8. 因子構成と合計レース数を計算
         pattern['factors'] = calculate_factor_composition(umamusume_data, final_races_in_pattern, reinforcement_strategy=strategy, is_larc=is_larc)
         pattern['totalRaces'] = len(final_races_in_pattern)
-        
+
         # このイテレーションで新しいレースが追加されたかチェック
-        if len(used_races) > races_used_before_iteration:
+        if len(used_races) > races_used_before_iteration or is_larc:
             patterns.append(pattern)
         else:
             # 新しいレースが一つも追加されなかった場合、これ以上パターンは作れないのでループを抜ける
@@ -603,6 +612,7 @@ def get_race_pattern_data(count, user_id, umamusume_id):
     
     # --- 4. シナリオレースの取り扱い ---
     found_non_conflicting_pattern = False
+
     if scenario_races:
         # 4.1 シナリオレースとタイミングが被らないパターン(A)を探す
         for i, pattern in enumerate(patterns):
