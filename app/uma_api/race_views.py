@@ -93,7 +93,6 @@ def remaining(request):
             ).values_list('race_id', flat=True)
             
             remaining_races = Race.objects.exclude(race_id__in=regist_race_ids).filter(race_rank__in=[1, 2, 3])
-            
             is_all_crown = remaining_races.count() == 0
             
             if not is_all_crown:
@@ -106,6 +105,7 @@ def remaining(request):
                 dirt_mile_race = remaining_races.filter(race_state=1, distance=2).count()
                 dirt_classic_race = remaining_races.filter(race_state=1, distance=3).count()
             else:
+                breedingCount = 0
                 turf_sprint_race = turf_mile_race = turf_classic_race = turf_long_distance_race = 0
                 dirt_sprint_distance_race = dirt_mile_race = dirt_classic_race = 0
             
