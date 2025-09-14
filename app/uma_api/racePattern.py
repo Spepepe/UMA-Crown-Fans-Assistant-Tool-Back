@@ -79,6 +79,7 @@ def fill_empty_slots_with_any_races(pattern, remaining_races, used_races):
 
                         selected_race = matching_races[0]
                         pattern[grade_name][idx]['race_name'] = selected_race.race_name
+                        pattern[grade_name][idx]['race_id'] = selected_race.race_id
                         used_races.add(selected_race.race_id)
                         added_any_race = True
         
@@ -406,12 +407,13 @@ def _create_base_pattern(conflicting_races, used_races, preferred_surface, prefe
 
                 pattern[grade_name].append({
                     "race_name": matching_race.race_name if matching_race else "",
+                    "race_id": matching_race.race_id if matching_race else None,
                     "month": month, "half": half
                 })
     return pattern, has_conflicting_races
 
 
-def _apply_larc_scenario_if_applicable(pattern, larc_created):
+def _apply_larc_scenario_if_applicable(pattern, larc_created, race_map):
     """ラークシナリオの条件をチェックし、適用可能であればパターンを更新する"""
     if larc_created:
         return False, True
@@ -441,6 +443,8 @@ def _apply_larc_scenario_if_applicable(pattern, larc_created):
                 for month, half, name in races:
                     if race_data['month'] == month and race_data['half'] == half and not race_data['race_name']:
                         pattern[grade][idx]['race_name'] = name
+                        race_id = race_map.get((name, month, half))
+                        pattern[grade][idx]['race_id'] = race_id
                         break
         return True, True
     return False, False
@@ -461,22 +465,15 @@ def _determine_and_apply_scenario(pattern, is_larc, has_conflicts, is_scenario_p
 def _get_all_races_in_pattern(pattern, all_g_races):
     """パターン内のレース名からRaceオブジェクトのリストを取得する"""
     races_in_pattern = []
-    race_map = {(r.race_name, r.race_months, r.half_flag): r for r in all_g_races}
+    race_id_map = {r.race_id: r for r in all_g_races}
 
     for grade_races in [pattern['junior'], pattern['classic'], pattern['senior']]:
         for race_data in grade_races:
-            if race_data['race_name']:
-                key = (race_data['race_name'], race_data['month'], race_data['half'])
-                race_obj = race_map.get(key)
+            race_id = race_data.get('race_id')
+            if race_id:
+                race_obj = race_id_map.get(race_id)
                 if race_obj:
                     races_in_pattern.append(race_obj)
-                else: # フォールバック
-                    from .models import Race
-                    try:
-                        race = Race.objects.get(race_name=key[0], race_months=key[1], half_flag=key[2])
-                        races_in_pattern.append(race)
-                    except Race.DoesNotExist:
-                        pass # ログ推奨
     return races_in_pattern
 
 
@@ -506,6 +503,7 @@ def _fill_junior_slots(pattern, remaining_races, used_races):
                 if (race.race_months == race_data['month'] and race.half_flag == race_data['half'] and
                     race.junior_flag and race.race_id not in used_races):
                     pattern['junior'][idx]['race_name'] = race.race_name
+                    pattern['junior'][idx]['race_id'] = race.race_id
                     used_races.add(race.race_id)
                     break
 
@@ -534,6 +532,9 @@ def get_race_pattern_data(count, user_id, umamusume_id):
     
     # 2.2 シナリオレースIDを取得
     _, scenario_race_ids = _extract_conflicting_races(scenario_races, remaining_races_qs)
+    
+    # 2.3 レース名からIDを引くためのマップを作成
+    race_map = {(r.race_name, r.race_months, r.half_flag): r.race_id for r in all_g_races}
     
     # --- 3. パターン生成ループ ---
     patterns = []
@@ -567,7 +568,7 @@ def get_race_pattern_data(count, user_id, umamusume_id):
         pattern['strategy'] = strategy # 表示やデバッグ用に戦略を記録
 
         # 3.3. ラークシナリオ判定 & 適用
-        is_larc, larc_created = _apply_larc_scenario_if_applicable(pattern, larc_created)
+        is_larc, larc_created = _apply_larc_scenario_if_applicable(pattern, larc_created, race_map)
 
         # 3.4. シナリオ名決定 & 適用
         _determine_and_apply_scenario(pattern, is_larc, has_conflicts)
@@ -620,6 +621,7 @@ def get_race_pattern_data(count, user_id, umamusume_id):
                     for race_data in patterns[i][grade]:
                         if race_data['month'] == race.race_months and race_data['half'] == race.half_flag and not race_data['race_name']:
                             race_data['race_name'] = race.race_name
+                            race_data['race_id'] = race.race_id
                             break
                 
                 patterns[i]['scenario'] = "最新"
@@ -639,7 +641,7 @@ def get_race_pattern_data(count, user_id, umamusume_id):
         for grade_name, month_range in [('junior', range(7, 13)), ('classic', range(1, 13)), ('senior', range(1, 13))]:
             for month in month_range:
                 for half in [0, 1]:
-                    scenario_pattern[grade_name].append({"race_name": "", "month": month, "half": half})
+                    scenario_pattern[grade_name].append({"race_name": "", "race_id": None, "month": month, "half": half})
 
         for sr in scenario_races:
             race = sr.race
@@ -647,6 +649,7 @@ def get_race_pattern_data(count, user_id, umamusume_id):
             for race_data in scenario_pattern[grade]:
                 if race_data['month'] == race.race_months and race_data['half'] == race.half_flag:
                     race_data['race_name'] = race.race_name
+                    race_data['race_id'] = race.race_id
                     break
         
         fill_empty_slots_with_any_races(scenario_pattern, list(remaining_races_qs), used_races)

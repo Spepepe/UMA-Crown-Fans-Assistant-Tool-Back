@@ -255,6 +255,62 @@ def fan_up(request):
         logger.logwrite('error', f'fanUp:{e}')
         return Response({'error': 'ファン数更新エラー'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def register_race_pattern(request):
+    """選択されたレースパターンをまとめて登録するAPI
+    * @param request HTTPリクエストオブジェクト
+    * @param request.user.user_id ユーザーID
+    * @param request.data.umamusumeId ウマ娘ID
+    * @param request.data.races レースオブジェクトの配列
+    * @return Response 登録完了メッセージ
+    """
+    logger = UmamusumeLog(request)
+    logger.logwrite('start', 'register_race_pattern')
+    
+    try:
+        user_id = request.user.user_id
+        umamusume_id = request.data.get('umamusumeId')
+        races = request.data.get('races', [])
+
+        if not umamusume_id or not races:
+            logger.logwrite('error', 'register_race_pattern - 不正なリクエスト: ウマ娘IDまたはレースデータがありません。')
+            return Response({'error': 'ウマ娘IDとレースデータは必須です。'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # 対象のウマ娘がユーザーによって登録されているか確認
+        if not RegistUmamusume.objects.filter(user_id=user_id, umamusume_id=umamusume_id).exists():
+            logger.logwrite('error', f'register_race_pattern - 対象のウマ娘が登録されていません: user_id={user_id}, umamusume_id={umamusume_id}')
+            return Response({'error': '対象のウマ娘が登録されていません。'}, status=status.HTTP_400_BAD_REQUEST)
+
+        race_records_to_create = []
+        now = timezone.now()
+        
+        # 登録済みのレースIDを取得し、重複を避ける
+        existing_race_ids = set(RegistUmamusumeRace.objects.filter(
+            user_id=user_id, 
+            umamusume_id=umamusume_id
+        ).values_list('race_id', flat=True))
+
+        for race in races:
+            # フロントエンドからのキャメルケース(raceId)とスネークケース(race_id)の両方に対応
+            race_id = race.get('race_id') or race.get('raceId')
+            if race_id and race_id not in existing_race_ids:
+                race_records_to_create.append(
+                    RegistUmamusumeRace(user_id=user_id, umamusume_id=umamusume_id, race_id=race_id, regist_date=now)
+                )
+                # 同じリクエスト内での重複も防ぐ
+                existing_race_ids.add(race_id)
+
+        if race_records_to_create:
+            RegistUmamusumeRace.objects.bulk_create(race_records_to_create)
+        
+        count = len(race_records_to_create)
+        logger.logwrite('end', f'register_race_pattern - 登録完了 umamusume_id:{umamusume_id}, 新規レース数:{count}')
+        return Response({'message': f'{count}件のレースが新たに出走登録されました。'}, status=status.HTTP_201_CREATED)
+    except Exception as e:
+        logger.logwrite('error', f'register_race_pattern:{e}')
+        return Response({'error': 'レースパターン登録エラー'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def umamusume_list(request):
@@ -326,61 +382,57 @@ def calculate_parent_factors(request):
         # --- パターン生成ロジック ---
         all_patterns = []
 
-        # 1. Main Factor (aaa, aba, baa, bba) の組み合わせを生成
-        #    - {芝, 芝, 差し, 差し} の組み合わせ
-        main_factors_pool = (surface, surface, style, style)
-        main_permutations = sorted(list(set(permutations(main_factors_pool)))) # 6通りのユニークな順列
+        # 1. 各祖父母のメイン因子プールを決定
+        # 祖父母Aのメイン因子: サブ因子が「差し」x2なら「芝」x2、サブ因子が「芝」x2なら「差し」x2
+        main_a_pool = (surface, style)
+        if factor_a_1 == "差し" and factor_a_2 == "差し":
+            main_a_pool = ("芝", "芝")
+        elif factor_a_1 == "芝" and factor_a_2 == "芝":
+            main_a_pool = ("差し", "差し")
 
-        # 2. Sub Factor (aab, abb, bab, bbb) の組み合わせを生成
-        #    - 祖父母Aの計算因子 (factor_a_1, factor_a_2)
-        #    - 祖父母Bの計算因子 (factor_b_1, factor_b_2)
+        # 祖父母Bのメイン因子: 同様のロジック
+        main_b_pool = (surface, style)
+        if factor_b_1 == "差し" and factor_b_2 == "差し":
+            main_b_pool = ("芝", "芝")
+        elif factor_b_1 == "芝" and factor_b_2 == "芝":
+            main_b_pool = ("差し", "差し")
+
+        # 2. 各因子の組み合わせ(順列)を生成
+        main_a_perms = sorted(list(set(permutations(main_a_pool))))
         sub_a_perms = sorted(list(set(permutations((factor_a_1, factor_a_2)))))
+        main_b_perms = sorted(list(set(permutations(main_b_pool))))
         sub_b_perms = sorted(list(set(permutations((factor_b_1, factor_b_2)))))
 
         # 3. MainとSubの全組み合わせを生成
-        for p_main in main_permutations:
+        for p_main_a in main_a_perms:
             for p_sub_a in sub_a_perms:
-                for p_sub_b in sub_b_perms:
-                    # 祖父母Aの因子を構築
-                    grandparent_a_factors = {
-                        "aa": style if p_main[0] ==  surface else surface,
-                        "ab": style if p_main[1] ==  surface else surface,
-                        "aaa": p_main[0],
-                        "aba": p_main[1],
-                        "aab": p_sub_a[0],
-                        "abb": p_sub_a[1],
-                    }
-                    # 祖父母Bの因子を構築
-                    grandparent_b_factors = {
-                        "ba": style if p_main[2] ==  surface else surface,
-                        "bb": style if p_main[3] ==  surface else surface,
-                        "baa": p_main[2],
-                        "bba": p_main[3],
-                        "bab": p_sub_b[0],
-                        "bbb": p_sub_b[1],
-                    }
+                for p_main_b in main_b_perms:
+                    for p_sub_b in sub_b_perms:
+                        # パターン1: 基本の組み合わせ
+                        grandparent_a_factors = {
+                            "aaa": p_main_a[0], "aba": p_main_a[1],
+                            "aab": p_sub_a[0], "abb": p_sub_a[1],
+                            "aa": factor_a_1, "ab": factor_a_2,
+                        }
+                        grandparent_b_factors = {
+                            "baa": p_main_b[0], "bba": p_main_b[1],
+                            "bab": p_sub_b[0], "bbb": p_sub_b[1],
+                            "ba": factor_b_1, "bb": factor_b_2,
+                        }
+                        all_patterns.append({"factors": {"grandparent_a": grandparent_a_factors, "grandparent_b": grandparent_b_factors}})
 
-                    # 稀なケース：AとBのMain因子が入れ替わっただけのパターンも生成
-                    # 例: (aaa=S, aba=S), (baa=T, bba=T) と (aaa=T, aba=T), (baa=S, bba=S)
-                    grandparent_a_factors_swapped = {
-                        "aa": style if p_main[2] ==  surface else surface,
-                        "ab": style if p_main[3] ==  surface else surface,
-                        "aaa": p_main[2],
-                        "aba": p_main[3],
-                        "aab": p_sub_a[0],
-                        "abb": p_sub_a[1],
-                    }
-                    grandparent_b_factors_swapped = {
-                        "ba":  style if p_main[0] ==  surface else surface,
-                        "bb":  style if p_main[1] ==  surface else surface,
-                        "baa": p_main[0],
-                        "bba": p_main[1],
-                        "bab": p_sub_b[0],
-                        "bbb": p_sub_b[1],
-                    }
-
-                    all_patterns.append({"factors": {"grandparent_a": grandparent_a_factors, "grandparent_b": grandparent_b_factors}})
-                    all_patterns.append({"factors": {"grandparent_a": grandparent_a_factors_swapped, "grandparent_b": grandparent_b_factors_swapped}})
+                        # パターン2: 祖父母AとBのメイン因子を入れ替えた組み合わせ
+                        grandparent_a_factors_swapped = {
+                            "aaa": p_main_b[0], "aba": p_main_b[1], # Bのメイン因子を使用
+                            "aab": p_sub_a[0], "abb": p_sub_a[1],
+                            "aa": factor_a_1, "ab": factor_a_2,
+                        }
+                        grandparent_b_factors_swapped = {
+                            "baa": p_main_a[0], "bba": p_main_a[1], # Aのメイン因子を使用
+                            "bab": p_sub_b[0], "bbb": p_sub_b[1],
+                            "ba": factor_b_1, "bb": factor_b_2,
+                        }
+                        all_patterns.append({"factors": {"grandparent_a": grandparent_a_factors_swapped, "grandparent_b": grandparent_b_factors_swapped}})
 
         # 最終的に生成されたパターンの中から重複を削除する
         unique_patterns = []
