@@ -84,48 +84,66 @@ def remaining(request):
     try:
         user_id = request.user.user_id
         regist_umamusumes = RegistUmamusume.objects.filter(user_id=user_id).select_related('umamusume')
-        
+
+        # 登録ウマ娘のIDリストを作成
+        regist_umamusume_ids = [ru.umamusume_id for ru in regist_umamusumes]
+
+        # 出走済みレースIDをウマ娘ごとにまとめて取得 (N+1問題対策)
+        run_races_qs = RegistUmamusumeRace.objects.filter(
+            user_id=user_id,
+            umamusume_id__in=regist_umamusume_ids
+        ).values('umamusume_id', 'race_id')
+
+        # ウマ娘IDをキー、レースIDのリストを値とする辞書を作成
+        run_races_by_umamusume = {}
+        for item in run_races_qs:
+            umamusume_id = item['umamusume_id']
+            if umamusume_id not in run_races_by_umamusume:
+                run_races_by_umamusume[umamusume_id] = []
+            run_races_by_umamusume[umamusume_id].append(item['race_id'])
+
         results = []
+        # G1, G2, G3ランクの全レースを事前に取得
+        target_races = Race.objects.filter(race_rank__in=[1, 2, 3])
+        count_keys = ["allCrownRace", "turfSprintRace", "turfMileRace", "turfClassicRace", "turfLongDistanceRace", "dirtSprintDistanceRace", "dirtMileRace", "dirtClassicRace"]
+
         for regist_umamusume in regist_umamusumes:
-            regist_race_ids = RegistUmamusumeRace.objects.filter(
-                user_id=user_id,
-                umamusume_id=regist_umamusume.umamusume_id
-            ).values_list('race_id', flat=True)
+            regist_race_ids = run_races_by_umamusume.get(regist_umamusume.umamusume_id, [])
             
-            remaining_races = Race.objects.exclude(race_id__in=regist_race_ids).filter(race_rank__in=[1, 2, 3])
-            is_all_crown = remaining_races.count() == 0
+            remaining_races = target_races.exclude(race_id__in=regist_race_ids)
+            is_all_crown = not remaining_races.exists()
             
             if not is_all_crown:
-                breedingCount = getbreedingCountData(regist_umamusume,remaining_races)
-                turf_sprint_race = remaining_races.filter(race_state=0, distance=1).count()
-                turf_mile_race = remaining_races.filter(race_state=0, distance=2).count()
-                turf_classic_race = remaining_races.filter(race_state=0, distance=3).count()
-                turf_long_distance_race = remaining_races.filter(race_state=0, distance=4).count()
-                dirt_sprint_distance_race = remaining_races.filter(race_state=1, distance=1).count()
-                dirt_mile_race = remaining_races.filter(race_state=1, distance=2).count()
-                dirt_classic_race = remaining_races.filter(race_state=1, distance=3).count()
+                breedingCount = getbreedingCountData(regist_umamusume, remaining_races)
+                # aggregateを使用して1回のクエリで各カテゴリのレース数を集計
+                counts = remaining_races.aggregate(
+                    allCrownRace=Count('race_id'),
+                    turfSprintRace=Count('race_id', filter=Q(race_state=0, distance=1)),
+                    turfMileRace=Count('race_id', filter=Q(race_state=0, distance=2)),
+                    turfClassicRace=Count('race_id', filter=Q(race_state=0, distance=3)),
+                    turfLongDistanceRace=Count('race_id', filter=Q(race_state=0, distance=4)),
+                    dirtSprintDistanceRace=Count('race_id', filter=Q(race_state=1, distance=1)),
+                    dirtMileRace=Count('race_id', filter=Q(race_state=1, distance=2)),
+                    dirtClassicRace=Count('race_id', filter=Q(race_state=1, distance=3))
+                )
             else:
                 breedingCount = 0
-                turf_sprint_race = turf_mile_race = turf_classic_race = turf_long_distance_race = 0
-                dirt_sprint_distance_race = dirt_mile_race = dirt_classic_race = 0
+                counts = {key: 0 for key in count_keys}
             
             result = {
                 "umamusume": UmamusumeSerializer(regist_umamusume.umamusume).data,
                 "isAllCrown": is_all_crown,
                 "breedingCount": breedingCount,
-                "allCrownRace": remaining_races.count(),
-                "turfSprintRace": turf_sprint_race,
-                "turfMileRace": turf_mile_race,
-                "turfClassicRace": turf_classic_race,
-                "turfLongDistanceRace": turf_long_distance_race,
-                "dirtSprintDistanceRace": dirt_sprint_distance_race,
-                "dirtMileRace": dirt_mile_race,
-                "dirtClassicRace": dirt_classic_race,
+                **counts,
             }
             results.append(result)
         
-        logger.logwrite('end', f'remaining - 取得ウマ娘数:{len(results)} (user_id:{user_id})')
-        return Response({'data': results})
+        # allCrownRaceの昇順、次にウマ娘名の昇順（五十音順）でソート
+        sorted_results = sorted(
+            results, key=lambda x: (x['allCrownRace'], x['umamusume']['umamusume_name'])
+        )
+        logger.logwrite('end', f'remaining - 取得ウマ娘数:{len(sorted_results)} (user_id:{user_id})')
+        return Response({'data': sorted_results})
     except Exception as e:
         logger.logwrite('error', f'remaining:{e}')
         return Response({'error': '残レース取得エラー'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
