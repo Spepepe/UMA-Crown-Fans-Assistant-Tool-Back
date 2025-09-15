@@ -294,11 +294,13 @@ def _get_race_grade(race, scenario_info=None):
         # シニア級の目標レースとして指定されているか
         if scenario_info.senior_flag == 1:
             return 'senior'
-        
         # シニア級でない場合、クラシック級かジュニア級かを判定する
         # ジュニア級でしか開催されないレースか？
         if race.junior_flag == 1 and not race.classic_flag:
             return 'junior'
+
+        if race.senior_flag == 1:
+            return 'senior'
         
         # 上記以外はクラシック級の目標とみなす
         return 'classic'
