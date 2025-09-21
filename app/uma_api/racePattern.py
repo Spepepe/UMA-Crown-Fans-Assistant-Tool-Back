@@ -258,10 +258,10 @@ def _filter_races_by_strategy(races, strategy, umamusume_data):
         '長距離': aptitude_map.get(umamusume_data.long_distance_aptitude, 0),
     }
 
-    # C以下の適性のうち、今回の戦略でサポートしないものを特定
+    # D以下の適性のうち、今回の戦略でサポートしないものを特定
     unsupported_low_aptitudes = {
         name for name, value in aptitudes.items() 
-        if value <= 1 and name not in strategy
+        if value <= 0 and name not in strategy
     }
 
     if not unsupported_low_aptitudes:
