@@ -309,6 +309,54 @@ def set_race_forward(regist_race_ids, prop):
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
+def race_register_one(request):
+    """対象のレースを1件出走登録するAPI
+    * @param request HTTPリクエストオブジェクト
+    * @param request.user.user_id ユーザーID
+    * @param request.data.umamusumeId ウマ娘ID
+    * @param request.data.race レースオブジェクト
+    * @return Response 出走完了メッセージ
+    """
+    logger = UmamusumeLog(request)
+    logger.logwrite('start', 'raceRegisterOne')
+
+    try:
+        user_id = request.user.user_id
+        umamusume_id = request.data.get('umamusumeId')
+        race_data = request.data.get('race')
+
+        if not umamusume_id or not race_data or not isinstance(race_data, dict):
+            logger.logwrite('error', f'raceRegisterOne: 不正なリクエストデータ (user_id:{user_id})')
+            return Response({'error': 'ウマ娘IDまたはレース情報が不足しています。'}, status=status.HTTP_400_BAD_REQUEST)
+
+        race_id = race_data.get('race_id')
+        if not race_id:
+            logger.logwrite('error', f'raceRegisterOne: race_idがありません (user_id:{user_id})')
+            return Response({'error': 'レースIDがレース情報に含まれていません。'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # 既に出走済みかチェックし、なければ作成する (get_or_create)
+        obj, created = RegistUmamusumeRace.objects.get_or_create(
+            user_id=user_id,
+            umamusume_id=umamusume_id,
+            race_id=race_id,
+            defaults={'regist_date': timezone.now()}
+        )
+        
+        race_name = race_data.get('race_name', f'ID:{race_id}')
+
+        if not created:
+            logger.logwrite('info', f'raceRegisterOne - 既に出走済み (user_id:{user_id}, umamusume_id:{umamusume_id}, race_id:{race_id})')
+            return Response({'message': f'{race_name}は既に出走済みです。'}, status=status.HTTP_200_OK)
+
+        logger.logwrite('end', f'raceRegisterOne - 出走登録完了 (user_id:{user_id}, umamusume_id:{umamusume_id}, race_id:{race_id})')
+        return Response({'message': f'{race_name}を出走登録しました。'}, status=status.HTTP_201_CREATED)
+    except Exception as e:
+        logger.logwrite('error', f'raceRegisterOne:{e}')
+        return Response({'error': 'ウマ娘出走エラー'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
 def race_run(request):
     """対象のレースに対して出走した結果を残すAPI
     * @param request HTTPリクエストオブジェクト
