@@ -115,9 +115,8 @@ def calculate_factor_composition(umamusume_data, pattern_races, reinforcement_st
         for factor, num in current_strategy.items():
             aptitude_char = aptitudes_data.get(factor, 'A')
             new_num = num
-            # G適性なら因子を4つに増やす
             if aptitude_map.get(aptitude_char, 0) <= -3:
-                new_num = 4
+                new_num = 3
             
             # 合計が6を超えないように調整
             if total_factors + new_num <= 6:
@@ -459,7 +458,7 @@ def _apply_larc_scenario_if_applicable(pattern, larc_created, race_map, used_rac
 def _determine_and_apply_scenario(pattern, is_larc, has_conflicts, is_scenario_pattern=False):
     """シナリオ名を決定する"""
     if is_scenario_pattern:
-        pattern["scenario"] = "最新"
+        pattern["scenario"] = "伝説"
     elif is_larc:
         pattern["scenario"] = "ラーク"
     elif has_conflicts:
@@ -626,7 +625,7 @@ def get_race_pattern_data(count, user_id, umamusume_id):
             )
 
             if not is_conflicting:
-                # 4.2 (A)にシナリオレースをマージし、シナリオを「最新」として扱う
+                # 4.2 (A)にシナリオレースをマージし、シナリオを「伝説」として扱う
                 for sr in scenario_races:
                     race = sr.race
                     grade = _get_race_grade(race, sr)
@@ -636,7 +635,7 @@ def get_race_pattern_data(count, user_id, umamusume_id):
                             race_data['race_id'] = race.race_id
                             break
                 
-                patterns[i]['scenario'] = "最新"
+                patterns[i]['scenario'] = "伝説"
                 patterns[i]['strategy'] = None
                 
                 final_races_in_pattern = _get_all_races_in_pattern(patterns[i], all_g_races)
@@ -645,11 +644,10 @@ def get_race_pattern_data(count, user_id, umamusume_id):
                 patterns[i]['totalRaces'] = len(final_races_in_pattern)
                 
                 found_non_conflicting_pattern = True
-                break
 
     # 4.3 (A)がなければ、従来通り最後にシナリオレース用のパターンを追加
     if scenario_races and not found_non_conflicting_pattern:
-        scenario_pattern = {"scenario": "最新", "strategy": None, "junior": [], "classic": [], "senior": []}
+        scenario_pattern = {"scenario": "伝説", "strategy": None, "junior": [], "classic": [], "senior": []}
         for grade_name, month_range in [('junior', range(7, 13)), ('classic', range(1, 13)), ('senior', range(1, 13))]:
             for month in month_range:
                 for half in [0, 1]:
