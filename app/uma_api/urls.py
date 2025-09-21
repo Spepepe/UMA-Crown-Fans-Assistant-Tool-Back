@@ -21,6 +21,7 @@ urlpatterns = [
     path('api/race/run', race_views.race_run, name='race_run'),
     path('api/race/pattern', race_views.get_race_pattern, name='get_race_pattern'),
     path('api/race/register-pattern', views.register_race_pattern, name='register_race_pattern'),
+    path('api/race/register-one', race_views.race_register_one, name='race_register_one'),
     
     # ウマ娘関連
     path('api/umamusume/regist-list', views.umamusume_regist_list, name='umamusume_regist_list'),
