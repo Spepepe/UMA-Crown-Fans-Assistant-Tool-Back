@@ -298,7 +298,7 @@ def _get_race_grade(race, scenario_info=None):
         if race.junior_flag == 1 and not race.classic_flag:
             return 'junior'
 
-        if race.senior_flag == 1:
+        if race.senior_flag == 1 and not scenario_info.senior_flag == 0:
             return 'senior'
         
         # 上記以外はクラシック級の目標とみなす

@@ -142,7 +142,13 @@ class Command(BaseCommand):
         """
         if isinstance(race_info, dict):
             race_name = race_info['名前']
-            senior_flag = race_info.get('時期') == 'シニア'
+            period = race_info.get('時期')
+            if period == 'シニア':
+                senior_flag = 1
+            elif period == 'クラシック':
+                senior_flag = 0
+            else:
+                senior_flag = None
         else:
             race_name = race_info
             senior_flag = None
@@ -150,12 +156,13 @@ class Command(BaseCommand):
         try:
             race = Race.objects.get(race_name=race_name)
             if not ScenarioRace.objects.filter(race=race, umamusume=umamusume, race_number=race_number).exists():
+
                 ScenarioRace.objects.create(
                     umamusume=umamusume,
                     race=race,
                     race_number=race_number,
                     random_group=random_group,
-                    senior_flag=1 if senior_flag else None
+                    senior_flag=senior_flag
                 )
                 self.stdout.write(f'{umamusume.umamusume_name}にシナリオレースの{race_name}を登録しました。')
         except Race.DoesNotExist:
